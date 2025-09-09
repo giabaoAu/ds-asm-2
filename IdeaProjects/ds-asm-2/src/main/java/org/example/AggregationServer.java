@@ -241,4 +241,62 @@ public class AggregationServer {
         out_stream.write(bytes);
         out_stream.flush();         // immediate print out
     }
+
+    // ---- writer for processing PUT with queue ----
+    private void start_worker() {
+        // writer takes requests from PUT queue and call apply_put()
+        Thread writer = new Thread(() -> {
+            while (true) {
+                try {
+                    PutRequest req = put_queue.take();
+                    apply_put(req);
+                } catch(Exception e) {
+                    breaks;
+                }
+            }
+        },"Put Worker");
+    }
+
+    // ---- Function for processing the PUT request ----
+    private void apply_put(PutRequest req) {
+       try {
+           // ---- prepare for write-ahead-log (wal) ----
+           JsonObject wal_payload = req.payload.deepCopy();
+           wal_payload.addProperty("_lamport", req.lamport);
+           persis_manager.append_wal(req.lamport, wal_payload);
+
+           // ---- Write to in-memory -----
+           String id = req.payload.getAsString();
+           WeatherRecord existing = memory_store.get(id);
+           boolean created = false;
+           // new record
+           if (existing == null || req.lamport >= existing.lamport) {
+               memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport));
+           }
+
+           // ---- Write snapshot ----
+           persis_manager.write_snapshot(memory_store);
+
+           // 201 - first time created
+           // 200 - sucessful
+           req.result_future.complete(created ? 201: 200);
+       } catch (Exception e) {
+           // 500 - internal server error
+           req.result_future().complete(500);
+       }
+    }
+
+    // ---- main function ----
+    public static void main(String[] args) throws Exception {
+        int port = 4567;                    // default port -> can be changed
+        String persis_dir = "./data";       // store in data for now
+
+        // Parse in port num or persistent directory if provided
+        if (args.length > 0) {
+            port = Integer.parseInt(args[0]);
+        }
+        if (args.length > 1) {
+            persis_dir = args[1];
+        }
+    }
 }
