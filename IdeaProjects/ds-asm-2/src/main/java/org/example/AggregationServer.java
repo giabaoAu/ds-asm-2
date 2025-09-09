@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonArray;
 
 // data structures
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -213,24 +214,31 @@ public class AggregationServer {
                 put_queue.put(req);
 
                 int result = req.result_future().get();
-                write_resposne(out_stream,result, result == 201? "Created" : "OK");
+                write_response(out_stream,result, result == 201? "Created" : "OK");
             } else if ("GET".equalsIgnoreCase(method) && "/weaher.json".equals(path)){
                 // Sending multiple weather records back
                 JsonArray arr = new JsonArray();
                 for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
                     arr.add(e.getValue().data);
                 }
-                write_repsonse(out_stream, 200, gson.toJson(arr));
+                write_response(out_stream, 200, gson.toJson(arr));
             } else {
                 write_response(out_stream, 400, "Only accept GET or PUT");
             }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
-        catch (Exception e) {
+    }
 
-        } finally {
-            try {
-                s.close();
-            } catch (IOException ignored) {}
-        }
+    // ---- Helper function for outputing ----
+    private void write_response(OutputStream out_stream, int status, String body) throws IOException {
+        // Store char as byte and prepare header
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        String headers = "HTTP/1,1 " + status + "OK\r\n" +
+                "Content-Length: " + bytes.length + "\r\n" +
+                "Content-Type: application/json\r\n\r\n";           // everything we send back is JSON (Serialisation)
+        out_stream.write(headers.getBytes(StandardCharsets.UTF_8));
+        out_stream.write(bytes);
+        out_stream.flush();         // immediate print out
     }
 }
