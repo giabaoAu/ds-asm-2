@@ -149,8 +149,8 @@ public class AggregationServer {
 
             // read header
             long content_length = 0;
-            String content_type = "";
             long remote_lamport = -1;
+            String content_type = "";
             String line;
             while ((line = reader.readLine()) != null && !line.isEmpty()) {
                 int index = line.indexOf(":");
@@ -169,10 +169,11 @@ public class AggregationServer {
                 }
             }
 
+            // ---- Already handled below when preparing the payload to send to writer ----
             // Update Aggregation Server Lamport Clock when receive request
-            if (remote_lamport >= 0) {
-                lp_clock.on_receive(remote_lamport);
-            }
+            //if (remote_lamport >= 0) {
+            //    lp_clock.on_receive(remote_lamport);
+            //}
 
             // ----- Handling PUT Request -----
             if ("PUT".equalsIgnoreCase(method) && "/weaher.json".equals(path)){
