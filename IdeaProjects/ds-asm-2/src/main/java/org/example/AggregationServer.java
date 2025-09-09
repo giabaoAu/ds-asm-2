@@ -7,7 +7,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonArray;
 
 // data structures
-import java.io.*;
+import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -16,18 +16,23 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.net.ServerSocket;
 import java.net.Socket;
 
+// Side packages
+import java.io.*;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+
 public class AggregationServer {
     // ----- config + identity -----
     private final int port;
-    private final String node_id;
-    private final String persistent_dir;        // directory where WAL/snapshots are stored
     private volatile boolean running = true;
     private final AtomicLong arrival_seq = new AtomicLong(0);
-    private final ExecutorService connection_pool = Executor.newCachedThreadPool(); // for new connection to server socket
+    private final ExecutorService connection_pool = Executors.newCachedThreadPool(); // for new connection to server socket
 
     // ----- in-memory/persistent storage -----
-    private final Map<String, WeatherRecord> memory_store = new ConcurrentHashMap<>();
-    private final Map<String, Long> last_update = new ConcurrentHashMap<>();
+    private final Map<String, WeatherRecord> memory_store = new ConcurrentHashMap();
+    private final Map<String, Long> last_update = new ConcurrentHashMap();
 
     // ---- single writer with queue for simplifying concurrency ----
     private final BlockingQueue<PutRequest> put_queue = new LinkedBlockingQueue<>();
@@ -68,7 +73,8 @@ public class AggregationServer {
             String snapshot = persis_manager.read_snapshot();
             // We got a snapshot (its a JSON array of records)
             if (snapshot != null && !snapshot.trim().isEmpty()) {
-                JsonArray arr = JsonParser.parseString(snapshot).getAsJsonArray();
+                // ---- Warning: this is deceprecated for newer version of Gson -> fix later ----
+                JsonArray arr = new JsonParser().parse(snapshot).getAsJsonArray();
                 // For each Json object
                 for (int i = 0; i < arr.size(); i++) {
                     JsonObject o = arr.get(i).getAsJsonObject();
@@ -87,14 +93,14 @@ public class AggregationServer {
                 // replay WAL for any update not in snapshot
                 for (JsonObject new_o : persis_manager.replay_WAL()) {
                     if (new_o.has("id")) {
-                        tring id = new_o.get("id").getAsString();
+                        String id = new_o.get("id").getAsString();
                         long lamport = new_o.has("_lamport") ? new_o.get("_lamport").getAsLong() : 0;
                         String source = new_o.has("_sourceId") ? new_o.get("_sourceId").getAsString() : "unknown";
 
                         // overwrite old record -> larger lamport means new
                         WeatherRecord existing = memory_store.get(id);
                         if (existing == null || lamport >= existing.lamport) {
-                            memory_store.put(id, new WeatherRecord(id, new_deepCopy(), lamport, source));
+                            memory_store.put(id, new WeatherRecord(id, new_o.deepCopy(), lamport, source));
                         }
                     } else {
                         continue;
@@ -130,9 +136,11 @@ public class AggregationServer {
             String request_line = reader.readLine();
             if (request_line == null) return;
 
-            // 400 - Requests are not either GET or PUT
             String[] parts = request_line.split(" ");
-            string method = parts[0];
+            String method = parts[0];
+            String path = parts[1];
+
+            // 400 - Requests are not either GET or PUT
             if (!method.equals("GET") && !method.equals("PUT")) {
                 write_response(out_stream, 400, "Bad Request");
             }
@@ -152,7 +160,7 @@ public class AggregationServer {
                     if (key.equalsIgnoreCase("Content-Length")){
                         content_length = Long.parseLong(value);
                     } else if (key.equalsIgnoreCase("Content-Type")){
-                        content_type = String.parseString(value);
+                        content_type = value;
                     } else if (key.equalsIgnoreCase("X-Lamport-Clock")){
                         remote_lamport = Long.parseLong(value);
                     }
@@ -165,7 +173,7 @@ public class AggregationServer {
             }
 
             // ----- Handling PUT Request -----
-            if ("PUT".equalsIgnoreCase(method)){
+            if ("PUT".equalsIgnoreCase(method) && "/weaher.json".equals(path)){
                 if (content_length == 0) {
                     write_response(out_stream, 204, "No Content");
                     return;
@@ -186,7 +194,7 @@ public class AggregationServer {
                 // Convert body into JSON object
                 JsonObject payload;
                 try {
-                    payload = JsonParser.parseString(body).getAsJsonObject();
+                    payload = new JsonParser().parse(body).getAsJsonObject();
                 } catch (Exception e){
                     write_response(out_stream, 500, "Invalid JSON!");
                     return;
@@ -201,11 +209,20 @@ public class AggregationServer {
 
                 // Prepare PUT request for writer to update
                 long lamport_header = (remote_lamport >= 0) ? remote_lamport : lp_clock.tick();         // if lp_clock from content sv smaller -> use agg sv lp_clock
-                PutRequest req = new PutRequest(lamport_header, arrival_seq.IncrementAndGet(), payload.deepCopy());
+                PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy());
                 put_queue.put(req);
 
                 int result = req.result_future().get();
                 write_resposne(out_stream,result, result == 201? "Created" : "OK");
+            } else if ("GET".equalsIgnoreCase(method) && "/weaher.json".equals(path)){
+                // Sending multiple weather records back
+                JsonArray arr = new JsonArray();
+                for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
+                    arr.add(e.getValue().data);
+                }
+                write_repsonse(out_stream, 200, gson.toJson(arr));
+            } else {
+                write_response(out_stream, 400, "Only accept GET or PUT");
             }
         }
         catch (Exception e) {
