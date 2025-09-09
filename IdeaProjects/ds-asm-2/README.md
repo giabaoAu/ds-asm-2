@@ -6,3 +6,4 @@
     - Search and add this: com.google.code.gson:gson:2.11.0
 # Note
 1. When GET client ask for weather data -> Multiple records sent back by Agg Sv
+2. PUT -> GET -> PUT is not yet handled, only PUT1 -> PUT2 ...

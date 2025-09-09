@@ -57,14 +57,15 @@ public class AggregationServer {
      * - Writer completes per-request CompletableFuture so the connection thread can send 201/200
      * - Expiry checker removes content server out of contact after 30s
      */
-    public AggregationServer(int port, String node_id, String persistent_dir) throws IOException {
+    public AggregationServer(int port, String persistent_dir) throws IOException {
         this.port = port;
-        this.lp_clock = new LamportClock(node_id);
+        this.lp_clock = new LamportClock();
         this.persis_manager = new PersistenceManager(persistent_dir);
         load_snapshot_WAL();
 
-        // ---- TODO ----
+        // Starting writer thread waiting for upcoming PUT requests
         start_worker();
+        // ---- TODO ----
         start_expiry_checker();
     }
 
@@ -213,9 +214,9 @@ public class AggregationServer {
                 PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy());
                 put_queue.put(req);
 
-                int result = req.result_future().get();
+                int result = req.result_future.get();
                 write_response(out_stream,result, result == 201? "Created" : "OK");
-            } else if ("GET".equalsIgnoreCase(method) && "/weaher.json".equals(path)){
+            } else if ("GET".equalsIgnoreCase(method) && "/weather.json".equals(path)){
                 // Sending multiple weather records back
                 JsonArray arr = new JsonArray();
                 for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
@@ -282,7 +283,7 @@ public class AggregationServer {
            req.result_future.complete(created ? 201: 200);
        } catch (Exception e) {
            // 500 - internal server error
-           req.result_future().complete(500);
+           req.result_future.complete(500);
        }
     }
 
@@ -298,5 +299,8 @@ public class AggregationServer {
         if (args.length > 1) {
             persis_dir = args[1];
         }
+
+        // Starting the Aggregation Server
+        new AggregationServer(port, persis_dir).start();
     }
 }
