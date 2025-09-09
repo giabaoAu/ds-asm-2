@@ -84,9 +84,9 @@ public class AggregationServer {
                     if (o.has("id")) {
                         String id = o.get("id").getAsString();
                         long lamport = o.has("_lamport") ? o.get("_lamport").getAsLong() : 0;
-                        String source = o.has("_sourceId") ? o.get("_sourceId").getAsString() : "unknown";
+                        // String source = o.has("_sourceId") ? o.get("_sourceId").getAsString() : "unknown";   ---- only need this for multipel agg sv
 
-                        memory_store.put(id, new WeatherRecord(id, o.deepCopy(), lamport, source));
+                        memory_store.put(id, new WeatherRecord(id, o.deepCopy(), lamport));
                     } else {
                         continue;
                     }
@@ -97,12 +97,12 @@ public class AggregationServer {
                     if (new_o.has("id")) {
                         String id = new_o.get("id").getAsString();
                         long lamport = new_o.has("_lamport") ? new_o.get("_lamport").getAsLong() : 0;
-                        String source = new_o.has("_sourceId") ? new_o.get("_sourceId").getAsString() : "unknown";
+                        // String source = new_o.has("_sourceId") ? new_o.get("_sourceId").getAsString() : "unknown";       // only need if use multiple agg sv
 
                         // overwrite old record -> larger lamport means new
                         WeatherRecord existing = memory_store.get(id);
                         if (existing == null || lamport >= existing.lamport) {
-                            memory_store.put(id, new WeatherRecord(id, new_o.deepCopy(), lamport, source));
+                            memory_store.put(id, new WeatherRecord(id, new_o.deepCopy(), lamport));
                         }
                     } else {
                         continue;
@@ -253,7 +253,7 @@ public class AggregationServer {
                     PutRequest req = put_queue.take();
                     apply_put(req);
                 } catch(Exception e) {
-                    breaks;
+                    System.err.println("Writer: cannot process PUT" + e.getMessage());
                 }
             }
         },"Put Worker");
