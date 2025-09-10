@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -38,7 +39,8 @@ public class PersistenceManager {
 
     // ---- Append to WAL ----
     public synchronized void append_wal(long lamport, JsonObject payload) throws IOException {
-        // Preparing payload
+        // Preparing wal_payload to write to file
+        // example: {"lamport":15,"payload":{"id":"A1","temperature":28,"humidity":65}}
         JsonObject wal_payload = new JsonObject();
         wal_payload.addProperty("lamport", lamport);
         wal_payload.add("payload", payload);
@@ -68,9 +70,36 @@ public class PersistenceManager {
             // convert arr to JSON
             writer.write(gson.toJson(arr));
         }
-
+        // If no crash happen after writing -> replace temp as the newest snapshot
         Files.move(temp, snapshot_path, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);       // replace temp with current snapshot if no crash atomically
     }
 
+    // ---- Replay WAL ----
+    public synchronized List<JsonObject> replay_WAL() throws IOException {
+        // Check if WAL exits
+        List<JsonObject> result = new ArrayList<>();        // returning an array of Json object
+        if (!Files.exists(wal_path)) return result;
 
+        // Read the file (updates.wal) in the wal_path dir
+        try (BufferedReader reader = Files.newBufferedReader(wal_path)) {
+            String line;
+            // Add line from wal_path file to entry as JSON object
+            // Then append all payload (Json obj) into result
+            while((line = reader.readLine()) != null) {
+                try {
+                    JsonObject entry = new JsonParser().parse(line).getAsJsonObject();
+                    result.add(entry.getAsJsonObject("payload"));
+                } catch (Exception ignored) {}
+            }
+        }
+        return result;
+    }
+
+    // ---- Reload the last saved snapshot when startup ----
+    public synchronized String read_snapshot() throws IOException {
+        // Check if no snapshot found
+        if (!Files.exists(snapshot_path)) return null;
+        // this result will be used for the actual reading in the Agg Sv code
+        return new String(Files.readAllBytes(snapshot_path), StandardCharsets.UTF_8);
+    }
 }
