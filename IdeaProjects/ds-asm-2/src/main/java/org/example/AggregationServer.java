@@ -9,9 +9,7 @@ import com.google.gson.JsonArray;
 // data structures
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
 
 // socket programming
 import java.net.ServerSocket;
@@ -20,8 +18,6 @@ import java.net.Socket;
 // Side packages
 import java.io.*;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 
 public class AggregationServer {
@@ -32,8 +28,9 @@ public class AggregationServer {
     private final ExecutorService connection_pool = Executors.newCachedThreadPool(); // for new connection to server socket
 
     // ----- in-memory/persistent storage -----
-    private final Map<String, WeatherRecord> memory_store = new ConcurrentHashMap();
-    private final Map<String, Long> last_update = new ConcurrentHashMap();
+    // Use ConcurrentMap for thread safety
+    private final ConcurrentMap<String, WeatherRecord> memory_store = new ConcurrentHashMap();
+    private final ConcurrentMap<String, Long> last_update = new ConcurrentHashMap();
 
     // ---- single writer with queue for simplifying concurrency ----
     private final BlockingQueue<PutRequest> put_queue = new LinkedBlockingQueue<>();
@@ -216,6 +213,11 @@ public class AggregationServer {
                 put_queue.put(req);
 
                 int result = req.result_future.get();
+
+                // update last_update table as we got a new PUT from a content server
+                last_update.put(req.source_id, System.currentTimeMillis());
+
+                // Send 201 or 200 to content server
                 write_response(out_stream,result, result == 201? "Created" : "OK");
             } else if ("GET".equalsIgnoreCase(method) && "/weather.json".equals(path)){
                 // Sending multiple weather records back
@@ -286,6 +288,30 @@ public class AggregationServer {
            // 500 - internal server error
            req.result_future.complete(500);
        }
+    }
+
+    // ---- Function for checking out of contact Content Server ----
+    private void start_expiry_checker() {
+        // Initialising thread for disconnecting content servers
+        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+
+        // Run periodically every 5 seconds
+        executor.scheduleAtFixedRate(()->{
+            long current_time = System.currentTimeMillis();
+            for (Map.Entry<String, Long> it : last_update.entrySet()) {
+                // Check if server is inactive
+                if (current_time - it.getValue() > 30_000) {
+                    String source = it.getKey();        // key (source_id of content server) : value (time when it last sent PUT)
+                    // remove this record of this content server
+                    // each weather record has a source_id because it was sent with the content server
+                    memory_store.entrySet().removeIf(content_server_iter -> source.equals(content_server_iter.getValue().source_id));
+                    last_update.remove(source);     // we can add the source back to last_seen if it send a PUT again
+
+                    // update the snapshot by persis_manager
+                    try { persis_manager.write_snapshot(memory_store); } catch (IOException e) { /* ignore this */ }
+                }
+            }
+        }, 5, 5, TimeUnit.SECONDS);
     }
 
     // ---- main function ----
