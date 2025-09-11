@@ -171,12 +171,12 @@ public class AggregationServer {
 
             // ---- Already handled below when preparing the payload to send to writer ----
             // Update Aggregation Server Lamport Clock when receive request
-            //if (remote_lamport >= 0) {
+            //if (remote_lamport >= 0)
             //    lp_clock.on_receive(remote_lamport);
             //}
 
             // ----- Handling PUT Request -----
-            if ("PUT".equalsIgnoreCase(method) && "/weaher.json".equals(path)){
+            if ("PUT".equalsIgnoreCase(method) && "/weather.json".equals(path)){
                 if (content_length == 0) {
                     write_response(out_stream, 204, "No Content");
                     return;

@@ -18,3 +18,14 @@ When handling a PUT request:
 - Call append_WAL() → Log the update.
 - Update the in-memory store.
 - Periodically call write_snapshot() to save everything. (being handled by expiry_checker in agg sv)
+
+# Compile All Files
+javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
+
+# Content Server
+1. javac -cp "gson-2.11.0.jar" -d out src/main/java/org/example/ContentServer.java
+2. java -cp "out;gson-2.11.0.jar" org.example.ContentServer http://localhost:4567/weather.json cs-data/sample.json
+
+
+# Aggregation Server
+1. java -cp "out;gson-2.11.0.jar" org.example.AggregationServer (window)

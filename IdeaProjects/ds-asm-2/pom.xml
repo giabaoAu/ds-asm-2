@@ -21,4 +21,5 @@
             <version>2.11.0</version> <!-- Latest as of 2025 -->
         </dependency>
     </dependencies>
+
 </project>
