@@ -38,11 +38,12 @@ public class PersistenceManager {
     }
 
     // ---- Append to WAL ----
-    public synchronized void append_wal(long lamport, JsonObject payload) throws IOException {
+    public synchronized void append_wal(long lamport, String source_id, JsonObject payload) throws IOException {
         // Preparing wal_payload to write to file
-        // example: {"lamport":15,"payload":{"id":"A1","temperature":28,"humidity":65}}
+        // example: {"lamport":15,"source_id":"CS1","payload":{"id":"A1","temperature":28}}
         JsonObject wal_payload = new JsonObject();
         wal_payload.addProperty("lamport", lamport);
+        wal_payload.addProperty("source_id", source_id);
         wal_payload.add("payload", payload);
 
         // Write to file
@@ -54,6 +55,7 @@ public class PersistenceManager {
 
     // ---- Write snapshot ----
     public synchronized void write_snapshot(ConcurrentMap<String, WeatherRecord> memory_store) throws IOException {
+        // example: [{"id":"A1","temperature":28,"lamport":15,"source_id":"CS1"}]
         // create a temporary snapshot file
         Path temp = snapshot_path.resolveSibling("feed.json.temp");
 
@@ -63,7 +65,8 @@ public class PersistenceManager {
             for (Map.Entry<String, WeatherRecord> it : memory_store.entrySet()){
                 // add both lamport + payload to each array object
                 JsonObject o = it.getValue().data.deepCopy();
-                o.addProperty("_lamport", it.getValue().lamport);
+                o.addProperty("lamport", it.getValue().lamport);
+                o.addProperty("source_id", it.getValue().source_id);
                 arr.add(o);
             }
 
@@ -87,7 +90,19 @@ public class PersistenceManager {
             // Then append all payload (Json obj) into result
             while((line = reader.readLine()) != null) {
                 try {
+                    // Prepare payload for result
                     JsonObject entry = new JsonParser().parse(line).getAsJsonObject();
+                    JsonObject payload = entry.getAsJsonObject("payload");
+
+                    // Embed lamport + source_id into payload for recovery
+                    if (entry.has("lamport")) {
+                        payload.addProperty("lamport", entry.get("lamport").getAsLong());
+                    }
+                    if (entry.has("source_id")) {
+                        payload.addProperty("source_id", entry.get("source_id").getAsString());
+                    }
+
+                    // Append to result
                     result.add(entry.getAsJsonObject("payload"));
                 } catch (Exception ignored) {}
             }

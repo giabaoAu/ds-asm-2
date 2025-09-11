@@ -12,13 +12,15 @@ public class PutRequest implements Comparable<PutRequest> {
     public final long lamport;
     public final long arrival_seq;
     public final JsonObject payload;
+    public final String source_id;  // identifying source content server
     public final CompletableFuture<Integer> result_future = new CompletableFuture<>();      // writer send back result asynchronously
 
     // ---- Constructor for first request ----
-    public PutRequest(long lamport, long arrival_seq, JsonObject payload) {
+    public PutRequest(long lamport, long arrival_seq, JsonObject payload, String source_id) {
         this.lamport = lamport;
         this.arrival_seq = arrival_seq;
         this.payload = payload;
+        this.source_id = source_id;
     }
 
     // ---- This is the other requests we're comparing to ----

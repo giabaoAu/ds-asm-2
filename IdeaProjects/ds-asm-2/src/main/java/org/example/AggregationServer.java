@@ -80,10 +80,10 @@ public class AggregationServer {
                     // if object has an id
                     if (o.has("id")) {
                         String id = o.get("id").getAsString();
-                        long lamport = o.has("_lamport") ? o.get("_lamport").getAsLong() : 0;
-                        // String source = o.has("_sourceId") ? o.get("_sourceId").getAsString() : "unknown";   ---- only need this for multipel agg sv
+                        long lamport = o.has("lamport") ? o.get("lamport").getAsLong() : 0;
+                        String source = o.has("source_id") ? o.get("source_id").getAsString() : "unknown";   // for identifying source content server
 
-                        memory_store.put(id, new WeatherRecord(id, o.deepCopy(), lamport));
+                        memory_store.put(id, new WeatherRecord(id, o.deepCopy(), lamport, source));
                     } else {
                         continue;
                     }
@@ -93,13 +93,13 @@ public class AggregationServer {
                 for (JsonObject new_o : persis_manager.replay_WAL()) {
                     if (new_o.has("id")) {
                         String id = new_o.get("id").getAsString();
-                        long lamport = new_o.has("_lamport") ? new_o.get("_lamport").getAsLong() : 0;
-                        // String source = new_o.has("_sourceId") ? new_o.get("_sourceId").getAsString() : "unknown";       // only need if use multiple agg sv
+                        long lamport = new_o.has("lamport") ? new_o.get("lamport").getAsLong() : 0;
+                        String source = new_o.has("soure_id") ? new_o.get("source_id").getAsString() : "unknown";       // for identifying source content server
 
                         // overwrite old record -> larger lamport means new
                         WeatherRecord existing = memory_store.get(id);
                         if (existing == null || lamport >= existing.lamport) {
-                            memory_store.put(id, new WeatherRecord(id, new_o.deepCopy(), lamport));
+                            memory_store.put(id, new WeatherRecord(id, new_o.deepCopy(), lamport, source));
                         }
                     } else {
                         continue;
@@ -148,6 +148,7 @@ public class AggregationServer {
             long content_length = 0;
             long remote_lamport = -1;
             String content_type = "";
+            String source_id = "unknown";       // content server initial default
             String line;
             while ((line = reader.readLine()) != null && !line.isEmpty()) {
                 int index = line.indexOf(":");
@@ -162,6 +163,8 @@ public class AggregationServer {
                         content_type = value;
                     } else if (key.equalsIgnoreCase("X-Lamport-Clock")){
                         remote_lamport = Long.parseLong(value);
+                    } else if (key.equalsIgnoreCase("X-Source-ID")) {
+                        source_id = value;
                     }
                 }
             }
@@ -209,7 +212,7 @@ public class AggregationServer {
 
                 // Prepare PUT request for writer to update
                 long lamport_header = (remote_lamport >= 0) ? remote_lamport : lp_clock.tick();         // if lp_clock from content sv smaller -> use agg sv lp_clock
-                PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy());
+                PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
                 put_queue.put(req);
 
                 int result = req.result_future.get();
@@ -266,8 +269,8 @@ public class AggregationServer {
        try {
            // ---- prepare for write-ahead-log (wal) ----
            JsonObject wal_payload = req.payload.deepCopy();
-           wal_payload.addProperty("_lamport", req.lamport);
-           persis_manager.append_wal(req.lamport, wal_payload);
+           wal_payload.addProperty("lamport", req.lamport);
+           persis_manager.append_wal(req.lamport, req.source_id, wal_payload);
 
            // ---- Write to in-memory -----
            String id = req.payload.getAsString();
@@ -275,7 +278,7 @@ public class AggregationServer {
            boolean created = false;
            // new record
            if (existing == null || req.lamport >= existing.lamport) {
-               memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport));
+               memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
            }
 
            // ---- Write snapshot ----
