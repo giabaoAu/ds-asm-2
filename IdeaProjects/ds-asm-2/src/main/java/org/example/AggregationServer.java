@@ -39,9 +39,9 @@ public class AggregationServer {
     // ---- Serialisation + Deserialisation ----
     private final Gson gson = new Gson();
 
-    // ---- TODO ----
+    // Persistent manager for WAL + snapshot
     private final LamportClock lp_clock;
-    private final PersistenceManager persis_manager;     // Persistent manager for WAL + snapshot
+    private final PersistenceManager persis_manager;
 
     /**
      * Aggregation server (simple socket-based HTTP parsing).
@@ -172,9 +172,9 @@ public class AggregationServer {
 
             // ---- Already handled below when preparing the payload to send to writer ----
             // Update Aggregation Server Lamport Clock when receive request
-            //if (remote_lamport >= 0)
-            //    lp_clock.on_receive(remote_lamport);
-            //}
+            if (remote_lamport >= 0){
+                lp_clock.on_receive(remote_lamport);
+            }
 
             // ----- Handling PUT Request -----
             if ("PUT".equalsIgnoreCase(method) && "/weather.json".equals(path)){
@@ -212,7 +212,7 @@ public class AggregationServer {
                 }
 
                 // Prepare PUT request for writer to update
-                long lamport_header = (remote_lamport >= 0) ? remote_lamport : lp_clock.tick();         // if lp_clock from content sv smaller -> use agg sv lp_clock
+                long lamport_header = lp_clock.get();
                 PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
                 put_queue.put(req);
 
