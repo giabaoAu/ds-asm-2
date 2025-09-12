@@ -276,11 +276,18 @@ public class AggregationServer {
            persis_manager.append_wal(req.lamport, req.source_id, wal_payload);
 
            // ---- Write to in-memory -----
-           String id = req.payload.get("id").getAsString();
+           // get source id of the content server
+           String id = req.source_id;
            WeatherRecord existing = memory_store.get(id);
            boolean created = false;
+
            // new record
-           if (existing == null || req.lamport >= existing.lamport) {
+           if (existing == null) {
+               // 201 - this source id is new
+               created = true;
+               memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
+           } else if (req.lamport >= existing.lamport) {
+               // 200 - subsequent PUT from same content server
                memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
            }
 
