@@ -142,7 +142,7 @@ public class AggregationServer {
 
             // 400 - Requests are not either GET or PUT
             if (!method.equals("GET") && !method.equals("PUT")) {
-                write_response(out_stream, 400, "Bad Request");
+                write_response(out_stream, 400, "Bad Request", lp_clock.get());
             }
 
             // read header
@@ -179,7 +179,7 @@ public class AggregationServer {
             // ----- Handling PUT Request -----
             if ("PUT".equalsIgnoreCase(method) && "/weather.json".equals(path)){
                 if (content_length == 0) {
-                    write_response(out_stream, 204, "No Content");
+                    write_response(out_stream, 204, "No Content", lp_clock.get());
                     return;
                 }
 
@@ -200,14 +200,14 @@ public class AggregationServer {
                 try {
                     payload = new JsonParser().parse(body).getAsJsonObject();
                 } catch (Exception e){
-                    write_response(out_stream, 500, "Invalid JSON!");
+                    write_response(out_stream, 500, "Invalid JSON!", lp_clock.get());
                     return;
                 }
 
                 // 500 - Missing id
                 String id = payload.has("id") ? payload.get("id").getAsString() : null;
                 if (id == null || id.isEmpty()) {
-                    write_response(out_stream, 500, "Missing id in payload!");
+                    write_response(out_stream, 500, "Missing id in payload!", lp_clock.get());
                     return;
                 }
 
@@ -222,16 +222,16 @@ public class AggregationServer {
                 last_update.put(req.source_id, System.currentTimeMillis());
 
                 // Send 201 or 200 to content server
-                write_response(out_stream,result, result == 201? "Created" : "OK");
+                write_response(out_stream,result, result == 201? "Created" : "OK", lp_clock.get());
             } else if ("GET".equalsIgnoreCase(method) && "/weather.json".equals(path)){
                 // Sending multiple weather records back
                 JsonArray arr = new JsonArray();
                 for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
                     arr.add(e.getValue().data);
                 }
-                write_response(out_stream, 200, gson.toJson(arr));
+                write_response(out_stream, 200, gson.toJson(arr), lp_clock.get());
             } else {
-                write_response(out_stream, 400, "Only accept GET or PUT");
+                write_response(out_stream, 400, "Only accept GET or PUT", lp_clock.get());
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -239,12 +239,13 @@ public class AggregationServer {
     }
 
     // ---- Helper function for outputing ----
-    private void write_response(OutputStream out_stream, int status, String body) throws IOException {
+    private void write_response(OutputStream out_stream, int status, String body, long lamport) throws IOException {
         // Store char as byte and prepare header
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         String headers = "HTTP/1.1 " + status + " OK\r\n" +
                 "Content-Length: " + bytes.length + "\r\n" +
-                "Content-Type: application/json\r\n\r\n";           // everything we send back is JSON (Serialisation)
+                "Content-Type: application/json\r\n" +
+                "X-Lamport-Clock: " + lp_clock.get() + "\r\n\r\n";           // everything we send back is JSON (Serialisation)
         out_stream.write(headers.getBytes(StandardCharsets.UTF_8));
         out_stream.write(bytes);
         out_stream.flush();         // immediate print out

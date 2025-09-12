@@ -48,7 +48,7 @@ public class ContentServer {
                 case "1":
                     lamport++;
                     // Call helper function for checking if we need to retry (convert payload from Json to String)
-                    boolean success = send_with_retry(server, payload.toString(), lamport, source_id);
+                    boolean success = send_with_retry(server, payload.toString(), source_id);
                     if (success) {
                         System.out.println("PUT sent successfully (Lamport: " + lamport + ", source_id: " + source_id + ")");
                     } else {
@@ -69,7 +69,7 @@ public class ContentServer {
     }
 
     // helper function for sending + retry
-    private static boolean send_with_retry(String server, String body, int lamport, String source_id){
+    private static boolean send_with_retry(String server, String body, String source_id){
         // Set up
         int max_retries = 5;
         int attempt = 0;
@@ -97,7 +97,18 @@ public class ContentServer {
 
                 // Check the response from Agg Sv
                 int status = connection.getResponseCode();
+
+                // Update Content Server Lamport Clock
+                String agg_lamport_header = connection.getHeaderField("X-Lamport-Clock");
+                if (agg_lamport_header != null) {
+                    int agg_lamport = Integer.parseInt(agg_lamport_header);
+                    lamport = Math.max(lamport, agg_lamport) + 1;
+                }
+
+                // print out response
                 System.out.println("Status: " + status);
+                System.out.println("Lamport Updated: " + lamport);
+
                 if (status >= 200 && status < 300) {
                     return true;
                 }
