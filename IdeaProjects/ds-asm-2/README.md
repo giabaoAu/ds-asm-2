@@ -8,8 +8,7 @@
 
 # Note
 1. When GET client ask for weather data -> Multiple records sent back by Agg Sv
-2. Increment lamport clock before sending 
-3. Content Server + Client update from Agg Sv send back lamport timestamp
+2. Content Server + Client update from Agg Sv send back lamport timestamp
 
 # Compile All Files
 javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
@@ -35,7 +34,7 @@ javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
 
 **HTTP server code**
 1. 200 (Content Server + Client) - DONE
-2. 201 (content server) - NOT WORKING
+2. 201 (content server) - DONE
 3. 204 
 4. 400
 5. 500
@@ -43,11 +42,16 @@ javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
 **Content-Server**:
 1. Content Server send + Agg Sv accept - DONE
 2. Fault-tolerant refers to the retry mechanism when a content server tries to send data, but the aggregation server is down - DOING
+3. Expiry checker work on multiple content servers - DONE
 
 **Client**:
-1. Get weather data from Agg Sv (No lamport sent) - DONE
+1. Get weather data from Agg Sv - DONE
+2. Update its own Lamport Clock - DONE
 
-**RESTAPI integration tests**
+**Crash Recovery**
+1. Sv down then up -> Content Sv send again but got 201 instead of 201 
+2. Expiry Checker doesn't work after server crash -> need content server to send again
+3. updates.wal didn't remove old records for out-of-contact servers (but GET does rec empty reponse from Agg Sv)
 
 # Automated Testing 
 
