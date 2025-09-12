@@ -62,7 +62,8 @@ public class AggregationServer {
 
         // Starting writer thread waiting for upcoming PUT requests
         start_worker();
-        // ---- TODO ----
+
+        // Check for any expired content server
         start_expiry_checker();
     }
 
@@ -241,7 +242,7 @@ public class AggregationServer {
     private void write_response(OutputStream out_stream, int status, String body) throws IOException {
         // Store char as byte and prepare header
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        String headers = "HTTP/1,1 " + status + "OK\r\n" +
+        String headers = "HTTP/1.1 " + status + " OK\r\n" +
                 "Content-Length: " + bytes.length + "\r\n" +
                 "Content-Type: application/json\r\n\r\n";           // everything we send back is JSON (Serialisation)
         out_stream.write(headers.getBytes(StandardCharsets.UTF_8));
@@ -262,6 +263,7 @@ public class AggregationServer {
                 }
             }
         },"Put Worker");
+        writer.start();
     }
 
     // ---- Function for processing the PUT request ----
@@ -273,7 +275,7 @@ public class AggregationServer {
            persis_manager.append_wal(req.lamport, req.source_id, wal_payload);
 
            // ---- Write to in-memory -----
-           String id = req.payload.getAsString();
+           String id = req.payload.get("id").getAsString();
            WeatherRecord existing = memory_store.get(id);
            boolean created = false;
            // new record
