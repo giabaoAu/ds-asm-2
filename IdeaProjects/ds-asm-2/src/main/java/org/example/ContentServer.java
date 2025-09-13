@@ -40,7 +40,8 @@ public class ContentServer {
             System.out.println("------ Welcome to Content Server ------ \n");
             System.out.println("    (Please choose option 1 or 2) \n");
             System.out.println("1. Send PUT to Aggregation Server\n");
-            System.out.println("2. Exit \n");
+            System.out.println("2. Change weather data file \n");
+            System.out.println("3. Exit \n");
 
             String option = scanner.nextLine().trim();
 
@@ -57,6 +58,25 @@ public class ContentServer {
                     break;
 
                 case "2":
+                    // Ask user for new file path
+                    System.out.println("Enter the new file path: (eg. cs-data/sample2.json");
+                    file = scanner.nextLine().trim();
+
+                    try {
+                        // Read the new file and parse into body
+                        body = new String(Files.readAllBytes(Paths.get(file)), StandardCharsets.UTF_8);
+
+                        // Prepare new payload (overwrite the one from above)
+                        payload = new JsonParser().parse(body).getAsJsonObject();
+
+                        // Tell the user we changed file
+                        System.out.println("File switched to: " + file);
+                    } catch (Exception e) {
+                        System.out.println("Failed to read new file! " + e.getMessage());
+                    }
+                    break;
+
+                case "3":
                     running = false;
                     System.out.println("Exiting ...");
                     break;

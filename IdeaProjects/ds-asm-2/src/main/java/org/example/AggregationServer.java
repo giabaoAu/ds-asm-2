@@ -277,8 +277,8 @@ public class AggregationServer {
 
            // ---- Write to in-memory -----
            // get source id of the content server
-           String id = req.source_id;
-           WeatherRecord existing = memory_store.get(req.source_id);
+           String id = req.payload.get("id").getAsString();
+           WeatherRecord existing = memory_store.get(id);
            boolean created = false;
 
            // new record
