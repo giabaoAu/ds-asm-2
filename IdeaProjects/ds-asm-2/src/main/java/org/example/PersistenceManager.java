@@ -10,10 +10,7 @@ import java.io.BufferedWriter;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -116,5 +113,10 @@ public class PersistenceManager {
         if (!Files.exists(snapshot_path)) return null;
         // this result will be used for the actual reading in the Agg Sv code
         return new String(Files.readAllBytes(snapshot_path), StandardCharsets.UTF_8);
+    }
+
+    // ---- Truncate WAL only after replaying WAL in the Aggregation Server ----
+    public synchronized void truncate_WAL() throws IOException {
+        Files.newBufferedWriter(wal_path, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING).close();
     }
 }

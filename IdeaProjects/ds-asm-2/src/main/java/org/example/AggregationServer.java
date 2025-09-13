@@ -129,7 +129,7 @@ public class AggregationServer {
     // ---- HTTP Request Handling -----
     private void handle_connection(Socket s) {
         try(BufferedInputStream buffer_input = new BufferedInputStream(s.getInputStream());
-         OutputStream out_stream = s.getOutputStream()){
+            OutputStream out_stream = s.getOutputStream()){
             BufferedReader reader = new BufferedReader(new InputStreamReader(buffer_input, StandardCharsets.UTF_8));
 
             // read each line from the request
@@ -269,38 +269,46 @@ public class AggregationServer {
 
     // ---- Function for processing the PUT request ----
     private void apply_put(PutRequest req) {
-       try {
-           // ---- prepare for write-ahead-log (wal) ----
-           JsonObject wal_payload = req.payload.deepCopy();
-           wal_payload.addProperty("lamport", req.lamport);
-           persis_manager.append_wal(req.lamport, req.source_id, wal_payload);
+        try {
 
-           // ---- Write to in-memory -----
-           // get source id of the content server
-           String id = req.payload.get("id").getAsString();
-           WeatherRecord existing = memory_store.get(id);
-           boolean created = false;
+            // ---- prepare for write-ahead-log (wal) ----
+            JsonObject wal_payload = req.payload.deepCopy();
+            wal_payload.addProperty("lamport", req.lamport);
+            persis_manager.append_wal(req.lamport, req.source_id, wal_payload);
 
-           // new record
-           if (existing == null) {
-               // 201 - this source id is new
-               created = true;
-               memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
-           } else if (req.lamport >= existing.lamport) {
-               // 200 - subsequent PUT from same content server
-               memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
-           }
+            // Check against Agg Sv lamport -> ignore old ones
+            long agg_clock = lp_clock.get();
+            if (req.lamport < agg_clock) {
+                req.result_future.complete(200);            // Inform content server received but no update
+                return;
+            }
 
-           // ---- Write snapshot ----
-           persis_manager.write_snapshot(memory_store);
+            // ---- Write to in-memory -----
+            // get source id of the content server
+            // String id = req.payload.get("id").getAsString();
+            String id = req.source_id;
+            WeatherRecord existing = memory_store.get(id);
+            boolean created = false;
 
-           // 201 - first time created
-           // 200 - sucessful
-           req.result_future.complete(created ? 201: 200);
-       } catch (Exception e) {
-           // 500 - internal server error
-           req.result_future.complete(500);
-       }
+            if (existing == null) {
+                // 201 - this source id is new
+                created = true;
+                memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
+            } else if (req.lamport >= existing.lamport) {
+                // 200 - subsequent PUT from same content server
+                memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
+            }
+
+            // ---- Write snapshot ----
+            persis_manager.write_snapshot(memory_store);
+
+            // 201 - first time created
+            // 200 - sucessful
+            req.result_future.complete(created ? 201: 200);
+        } catch (Exception e) {
+            // 500 - internal server error
+            req.result_future.complete(500);
+        }
     }
 
     // ---- Function for checking out of contact Content Server ----

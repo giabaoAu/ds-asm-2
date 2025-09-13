@@ -1,0 +1,17 @@
+id:IDS56224
+name:Sydney (Toronto /  Parramatta)
+state: NSW
+time_zone:CST
+lat:-34.9
+lon:158.6
+local_date_time:15/04:00pm
+local_date_time_full:20230715160000
+air_temp:17.3
+apparent_t:4.5
+cloud:Rainy
+dewpt:5.7
+press:1023.9
+rel_hum:60
+wind_dir:S
+wind_spd_kmh:15
+wind_spd_kt:8

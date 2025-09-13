@@ -1,0 +1,17 @@
+id:IDS70122
+name:Melbourne (King Willian /  Digna)
+state: VIC
+time_zone:CST
+lat:-24.9
+lon:168.6
+local_date_time:15/04:00pm
+local_date_time_full:20230715160000
+air_temp:22.3
+apparent_t:4.5
+cloud:Sunny
+dewpt:5.7
+press:1023.9
+rel_hum:60
+wind_dir:W
+wind_spd_kmh:10
+wind_spd_kt:4

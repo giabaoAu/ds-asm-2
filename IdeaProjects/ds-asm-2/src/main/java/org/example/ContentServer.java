@@ -4,6 +4,7 @@ package org.example;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -26,11 +27,10 @@ public class ContentServer {
         String file = args[1];
         String source_id = args[2];     // content server identification
 
-        // Get the file from local path
-        String body = new String(Files.readAllBytes(Paths.get(file)), StandardCharsets.UTF_8);
+        JsonObject payload = text_to_json(file, source_id);
 
         // Convert payload body to JSON format
-        JsonObject payload = new JsonParser().parse(body).getAsJsonObject();
+        //JsonObject payload = new JsonParser().parse(body).getAsJsonObject();
 
         // ----- Interactive menu -----
         Scanner scanner = new Scanner(System.in);
@@ -49,7 +49,7 @@ public class ContentServer {
                 case "1":
                     lamport++;
                     // Call helper function for checking if we need to retry (convert payload from Json to String)
-                    boolean success = send_with_retry(server, payload.toString(), source_id);
+                    boolean success = send_with_retry(server, payload, source_id);
                     if (success) {
                         System.out.println("PUT sent successfully (Lamport: " + lamport + ", source_id: " + source_id + ")");
                     } else {
@@ -59,21 +59,10 @@ public class ContentServer {
 
                 case "2":
                     // Ask user for new file path
-                    System.out.println("Enter the new file path: (eg. cs-data/sample2.json");
+                    System.out.println("Enter the new file path: (eg. cs-data/sample2.txt");
                     file = scanner.nextLine().trim();
-
-                    try {
-                        // Read the new file and parse into body
-                        body = new String(Files.readAllBytes(Paths.get(file)), StandardCharsets.UTF_8);
-
-                        // Prepare new payload (overwrite the one from above)
-                        payload = new JsonParser().parse(body).getAsJsonObject();
-
-                        // Tell the user we changed file
-                        System.out.println("File switched to: " + file);
-                    } catch (Exception e) {
-                        System.out.println("Failed to read new file! " + e.getMessage());
-                    }
+                    payload = text_to_json(file, source_id);
+                    System.out.println("File switched to: " + file);
                     break;
 
                 case "3":
@@ -88,8 +77,36 @@ public class ContentServer {
         scanner.close();
     }
 
+    // helper function for converting from plaintext -> json
+    private static JsonObject text_to_json(String file_path, String source_id) {
+        try {
+            // Read the whole BOM plaintext file
+            String content = Files.readString(Paths.get(file_path), StandardCharsets.UTF_8);
+
+            JsonObject obj = new JsonObject();
+
+            // Split into lines and parse "key:value"
+            String[] lines = content.split("\r?\n");
+            for (String line : lines) {
+                String[] parts = line.split(":", 2);
+                if (parts.length == 2) {
+                    obj.addProperty(parts[0].trim(), parts[1].trim());
+                }
+            }
+
+            // Add lamport + source_id explicitly
+            obj.addProperty("lamport", lamport);
+            obj.addProperty("source_id", source_id);
+
+            return obj;
+        } catch (IOException e) {
+            System.err.println("Failed to read file: " + e.getMessage());
+            return new JsonObject();  // empty payload if error
+        }
+    }
+
     // helper function for sending + retry
-    private static boolean send_with_retry(String server, String body, String source_id){
+    private static boolean send_with_retry(String server, JsonObject payload, String source_id){
         // Set up
         int max_retries = 5;
         int attempt = 0;
@@ -106,13 +123,16 @@ public class ContentServer {
                 connection.setDoOutput(true);
                 connection.setRequestMethod("PUT");
                 connection.setRequestProperty("Content-Type", "application/json");
-                connection.setRequestProperty("Content-Length", String.valueOf(body.getBytes(StandardCharsets.UTF_8).length));
+
+                // Convert payload as string to bytes
+                byte[] body_byte = payload.toString().getBytes(StandardCharsets.UTF_8);
+                connection.setRequestProperty("Content-Length", String.valueOf(body_byte.length));
                 connection.setRequestProperty("X-Lamport-Clock", Integer.toString(lamport));
                 connection.setRequestProperty("X-Source-ID", source_id);
 
                 // sending to the connection as writing to file
                 try (OutputStream out_stream = connection.getOutputStream()){
-                    out_stream.write(body.getBytes(StandardCharsets.UTF_8));
+                    out_stream.write(body_byte);
                 }
 
                 // Check the response from Agg Sv

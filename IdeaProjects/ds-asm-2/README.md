@@ -10,7 +10,7 @@
 1. GET client gets the newest weather data (no option to choose for now)
 2. Content Server + Client update from Agg Sv send back lamport timestamp
 3. If you have done some testing and would like a restart, please restore the feed.json to this [] as default (If not it might mess up the response code)
-
+4. source_id was used as key when updating Agg Sv memory as we want the latest record from each content server 
 # Compile All Files
 javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
 
@@ -23,14 +23,14 @@ cs-data/sample.json in the below command to <your_new_file_location>
 (I have made several files for testing, all of them are in the dir **cs-data/**)
 
 ```bash 
-java -cp "out;gson-2.11.0.jar" org.example.ContentServer http://localhost:4567/weather.json cs-data/sample.json 1
+java -cp "out;gson-2.11.0.jar" org.example.ContentServer http://localhost:4567/weather.json cs-data/sample.txt 1
 ```
 (You can also choose option 2 in the menu after running this command to change the weather record you want to send)
 
 Instruction:
 1. Start up content server with the above java command
 2. By default, your content server will read from cs-data/sample.json
-3. To send a different weather json, please choose 2 and specify the location of that file (eg: cs-data/sample2.json)
+3. To send a different weather json, please choose 2 and specify the location of that file (eg: cs-data/sample2.txt)
 
 # GET Client
 1.  java -cp "out;gson-2.11.0.jar" org.example.GETClient  http://localhost:4567/weather.json
@@ -75,7 +75,16 @@ Workflow:
 3. updates.wal didn't remove old records for out-of-contact servers (but GET does rec empty response from Agg Sv)
 
 # Automated Testing 
+Compile the test file with
+```bash
+javac -d out -cp "gson-2.11.0.jar;junit-platform-console-standalone-1.9.3.jar;out" src/test/AggregationServerTest.java
+```
+Now run the test class (run all test)
 
+```bash
+java -jar junit-platform-console-standalone-1.9.3.jar -cp "out;gson-2.11.0.jar" --scan-class-path
+
+```
 # How Do We Handle Crash and Recovery
 When the Aggregation Server starts:
 - Load the snapshot via read_snapshot().
