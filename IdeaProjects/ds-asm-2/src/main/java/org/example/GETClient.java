@@ -36,6 +36,7 @@ public class GETClient {
         String agg_lamport_header = connection.getHeaderField("X-Lamport-Clock");
         if(agg_lamport_header != null) {
             int agg_lamport = Integer.parseInt(agg_lamport_header);
+            System.out.println("GET status: " + agg_lamport);
             lamport = Math.max(lamport, agg_lamport) + 1;
         }
         System.out.println("Client Updated Lamport: " + lamport);

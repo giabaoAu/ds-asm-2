@@ -56,9 +56,9 @@ Workflow:
 **HTTP server code**
 1. 200 (Content Server + Client) - DONE
 2. 201 (content server) - DONE
-3. 204 
+3. 204 - Done
 4. 400
-5. 500
+5. 500 - Done
 
 **Content-Server**:
 1. Content Server send + Agg Sv accept - DONE
@@ -85,6 +85,12 @@ Now run the test class (run all test)
 java -jar junit-platform-console-standalone-1.9.3.jar -cp "out;gson-2.11.0.jar" --scan-class-path
 
 ```
+# How Do We Handle Concurrency?
+When 2 requests come at the same time:
+- The order of arrival is non-deterministic
+- It depends on the OS to decide which hit the Agg Sv first but this is not reliable
+- Even if we have a queue to store [ PUT1, PUT2 ], PUT2 might get overwritten by PUT1 if we don't check the Lamport clock 
+
 # How Do We Handle Crash and Recovery
 When the Aggregation Server starts:
 - Load the snapshot via read_snapshot().

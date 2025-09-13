@@ -95,7 +95,7 @@ public class AggregationServer {
                     if (new_o.has("id")) {
                         String id = new_o.get("id").getAsString();
                         long lamport = new_o.has("lamport") ? new_o.get("lamport").getAsLong() : 0;
-                        String source = new_o.has("soure_id") ? new_o.get("source_id").getAsString() : "unknown";       // for identifying source content server
+                        String source = new_o.has("source_id") ? new_o.get("source_id").getAsString() : "unknown";       // for identifying source content server
 
                         // overwrite old record -> larger lamport means new
                         WeatherRecord existing = memory_store.get(id);
@@ -170,11 +170,10 @@ public class AggregationServer {
                 }
             }
 
-            // ---- Already handled below when preparing the payload to send to writer ----
             // Update Aggregation Server Lamport Clock when receive request
-            if (remote_lamport >= 0){
-                lp_clock.on_receive(remote_lamport);
-            }
+            //if (remote_lamport >= 0){
+            //    lp_clock.on_receive(remote_lamport);
+            //}
 
             // ----- Handling PUT Request -----
             if ("PUT".equalsIgnoreCase(method) && "/weather.json".equals(path)){
@@ -212,8 +211,8 @@ public class AggregationServer {
                 }
 
                 // Prepare PUT request for writer to update
-                long lamport_header = lp_clock.get();
-                PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
+                long lamport_header = remote_lamport >= 0 ? remote_lamport : lp_clock.get();
+                PutRequest req = new PutRequest(remote_lamport, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
                 put_queue.put(req);
 
                 int result = req.result_future.get();
@@ -224,6 +223,9 @@ public class AggregationServer {
                 // Send 201 or 200 to content server
                 write_response(out_stream,result, result == 201? "Created" : "OK", lp_clock.get());
             } else if ("GET".equalsIgnoreCase(method) && "/weather.json".equals(path)){
+                // Update agg server lamport to reflect we've seen the GET
+                lp_clock.on_receive(remote_lamport);
+
                 // Sending multiple weather records back
                 JsonArray arr = new JsonArray();
                 for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
@@ -270,34 +272,28 @@ public class AggregationServer {
     // ---- Function for processing the PUT request ----
     private void apply_put(PutRequest req) {
         try {
+            // If an existing record exists and its lamport is greater than incoming, ignore.
+            String id = req.source_id;
+            WeatherRecord existing = memory_store.get(id);
+            if (existing != null && req.lamport < existing.lamport) {
+                // return 200 "OK" but do not overwrite.
+                req.result_future.complete(200);
+                // Update agg server lamport even if we dont use the new PUT
+                lp_clock.on_receive(req.lamport);
+                return;
+            }
 
             // ---- prepare for write-ahead-log (wal) ----
             JsonObject wal_payload = req.payload.deepCopy();
             wal_payload.addProperty("lamport", req.lamport);
             persis_manager.append_wal(req.lamport, req.source_id, wal_payload);
 
-            // Check against Agg Sv lamport -> ignore old ones
-            long agg_clock = lp_clock.get();
-            if (req.lamport < agg_clock) {
-                req.result_future.complete(200);            // Inform content server received but no update
-                return;
-            }
-
             // ---- Write to in-memory -----
-            // get source id of the content server
-            // String id = req.payload.get("id").getAsString();
-            String id = req.source_id;
-            WeatherRecord existing = memory_store.get(id);
-            boolean created = false;
+            boolean created = !memory_store.containsKey(id);
+            memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
 
-            if (existing == null) {
-                // 201 - this source id is new
-                created = true;
-                memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
-            } else if (req.lamport >= existing.lamport) {
-                // 200 - subsequent PUT from same content server
-                memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
-            }
+            // Update agg server lamport
+            lp_clock.on_receive(req.lamport);
 
             // ---- Write snapshot ----
             persis_manager.write_snapshot(memory_store);
