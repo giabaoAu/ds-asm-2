@@ -19,6 +19,9 @@ import java.net.Socket;
 import java.io.*;
 import java.util.concurrent.atomic.AtomicLong;
 
+// For thread safe
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 
 public class AggregationServer {
     // ----- config + identity -----
@@ -42,6 +45,9 @@ public class AggregationServer {
     // Persistent manager for WAL + snapshot
     private final LamportClock lp_clock;
     private final PersistenceManager persis_manager;
+
+    // For respecting order such as PUT -> GET -> PUT
+    private final ReentrantReadWriteLock reentrant_lock = new ReentrantReadWriteLock();
 
     /**
      * Aggregation server (simple socket-based HTTP parsing).
@@ -212,13 +218,20 @@ public class AggregationServer {
 
                 // Prepare PUT request for writer to update
                 long lamport_header = remote_lamport >= 0 ? remote_lamport : lp_clock.get();
-                PutRequest req = new PutRequest(remote_lamport, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
+                PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
                 put_queue.put(req);
 
                 int result = req.result_future.get();
 
                 // update last_update table as we got a new PUT from a content server
-                last_update.put(req.source_id, System.currentTimeMillis());
+                // ------ Reetrant Lock ------
+                // This is needed because expiry_checker might be checking while we have a new PUT
+                reentrant_lock.writeLock().lock();
+                try{
+                    last_update.put(req.source_id, System.currentTimeMillis());
+                } finally {
+                    reentrant_lock.writeLock().unlock();
+                }
 
                 // Send 201 or 200 to content server
                 write_response(out_stream,result, result == 201? "Created" : "OK", lp_clock.get());
@@ -226,12 +239,18 @@ public class AggregationServer {
                 // Update agg server lamport to reflect we've seen the GET
                 lp_clock.on_receive(remote_lamport);
 
-                // Sending multiple weather records back
-                JsonArray arr = new JsonArray();
-                for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
-                    arr.add(e.getValue().data);
+                // GET is locked to prevent later PUT interleave
+                reentrant_lock.readLock().lock();
+                try{
+                    // Sending multiple weather records back
+                    JsonArray arr = new JsonArray();
+                    for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
+                        arr.add(e.getValue().data);
+                    }
+                    write_response(out_stream, 200, gson.toJson(arr), lp_clock.get());
+                } finally {
+                    reentrant_lock.readLock().unlock();
                 }
-                write_response(out_stream, 200, gson.toJson(arr), lp_clock.get());
             } else {
                 write_response(out_stream, 400, "Only accept GET or PUT", lp_clock.get());
             }
@@ -271,6 +290,10 @@ public class AggregationServer {
 
     // ---- Function for processing the PUT request ----
     private void apply_put(PutRequest req) {
+
+        // ------ Reetrant lock --------
+        // Lock this to prevent GET to interleave
+        reentrant_lock.writeLock().lock();
         try {
             // If an existing record exists and its lamport is greater than incoming, ignore.
             String id = req.source_id;
@@ -304,6 +327,8 @@ public class AggregationServer {
         } catch (Exception e) {
             // 500 - internal server error
             req.result_future.complete(500);
+        } finally {
+            reentrant_lock.writeLock().unlock();
         }
     }
 
@@ -315,18 +340,25 @@ public class AggregationServer {
         // Run periodically every 5 seconds
         executor.scheduleAtFixedRate(()->{
             long current_time = System.currentTimeMillis();
-            for (Map.Entry<String, Long> it : last_update.entrySet()) {
-                // Check if server is inactive
-                if (current_time - it.getValue() > 30_000) {
-                    String source = it.getKey();        // key (source_id of content server) : value (time when it last sent PUT)
-                    // remove this record of this content server
-                    // each weather record has a source_id because it was sent with the content server
-                    memory_store.entrySet().removeIf(content_server_iter -> source.equals(content_server_iter.getValue().source_id));
-                    last_update.remove(source);     // we can add the source back to last_seen if it send a PUT again
 
-                    // update the snapshot by persis_manager
-                    try { persis_manager.write_snapshot(memory_store); } catch (IOException e) { /* ignore this */ }
+            // ------ Reetrant lock --------
+            reentrant_lock.writeLock().lock();
+            try{
+                for (Map.Entry<String, Long> it : last_update.entrySet()) {
+                    // Check if server is inactive
+                    if (current_time - it.getValue() > 30_000) {
+                        String source = it.getKey();        // key (source_id of content server) : value (time when it last sent PUT)
+                        // remove this record of this content server
+                        // each weather record has a source_id because it was sent with the content server
+                        memory_store.entrySet().removeIf(content_server_iter -> source.equals(content_server_iter.getValue().source_id));
+                        last_update.remove(source);     // we can add the source back to last_seen if it send a PUT again
+
+                        // update the snapshot by persis_manager
+                        try { persis_manager.write_snapshot(memory_store); } catch (IOException e) { /* ignore this */ }
+                    }
                 }
+            } finally {
+                reentrant_lock.writeLock().unlock();
             }
         }, 5, 5, TimeUnit.SECONDS);
     }

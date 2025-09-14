@@ -70,7 +70,7 @@ public class AggregationServerTest {
     /** Stop server */
     @AfterAll
     public static void stopServer() {
-        if (serverProcess != null) serverProcess.destroy();
+        if (serverProcess != null) serverProcess.destroyForcibly();
     }
 
     /** send GET request (Agg Sv return Json Array) */
@@ -288,12 +288,34 @@ public class AggregationServerTest {
         assertEquals(500, code);
     }
 
+    /**
+     * TEST 7
+     *
+     * Test if sending a requests that are not PUT/GET
+     * payload: HEAD
+     *
+     * Expected: 400 --------- Get: 400
+     * */
+    @Test
+    @Order(7)
+    public void testInvalidMethod() throws Exception {
+        System.out.println("TEST: send request with invalid method returns 400");
+        // Set up connection
+        URL url = new URL(SERVER_URL);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("HEAD");
+
+        // Check if server reponse with 400
+        int code = conn.getResponseCode();
+        assertEquals(400, code);
+    }
+
     // ----------------------------
     // CONCURRENCY TESTS
     // ----------------------------
 
     /**
-     * TEST 7
+     * TEST 8
      *
      * Test 2 PUTs with same record ID but different Lamport clock
      * These 2 arrive at the same time so the order is non-deterministic
@@ -307,7 +329,7 @@ public class AggregationServerTest {
      * Expected: PUT-2 (Lamport 7) --------- Get: PUT-2 (Lamport 7)
      * */
     @Test
-    @Order(7)
+    @Order(8)
     public void testConcurrentPuts() throws Exception {
         System.out.println("TEST: Concurrent PUTs maintain Lamport order");
         // Spawn 2 thread for sending at the same time
@@ -339,7 +361,7 @@ public class AggregationServerTest {
     }
 
     /**
-     * TEST 8
+     * TEST 9
      *
      * Test if three clients get the same response from Agg Server
      * Spawn a pool of 3 threads to send 3 GET requests.
@@ -349,7 +371,7 @@ public class AggregationServerTest {
      * Expected: True --------- Get: True
      * */
     @Test
-    @Order(8)
+    @Order(9)
     public void testConcurrentGets() throws Exception {
         System.out.println("TEST: Concurrent GETs return consistent feed");
 
@@ -369,7 +391,7 @@ public class AggregationServerTest {
 
         // Just making sure that they didn't all get empty response
         // Got: [{"id":"IDS002","air_temp":10.0}]
-        System.out.println("Test 8 - res from agg sv: " + arr1);
+        System.out.println("Test 9 - res from agg sv: " + arr1);
 
         // Check if they all get the same response
         assertEquals(arr1.size(), arr2.size());
@@ -382,7 +404,7 @@ public class AggregationServerTest {
     // ----------------------------
 
     /**
-     * TEST 9
+     * TEST 10
      *
      * Test if multiple records from different Content Servers coexist
      * PUT-1: id - IDS003, air - 30.0, lamport - 8, source_id - CS1
@@ -392,7 +414,7 @@ public class AggregationServerTest {
      * Expected: >= 3 records --------- Get: >= 3 records
      */
     @Test
-    @Order(9)
+    @Order(10)
     public void testMultipleRecords() throws Exception {
         System.out.println("TEST: Multiple records coexist");
 
@@ -405,7 +427,7 @@ public class AggregationServerTest {
         JsonArray arr = sendGet();
 
         // For debugging
-        System.out.println("Test 9 - res from server: " + arr);
+        System.out.println("Test 10 - res from server: " + arr);
 
         // Return true if at least 3 records
         assertTrue(arr.size() >= 3, "Expect at least 3 records total");
@@ -416,7 +438,7 @@ public class AggregationServerTest {
     // ----------------------------
 
     /**
-     * TEST 10
+     * TEST 11
      *
      * Test if server persists data after crash/restart
      * Step 1: destroy serverProcess to simulate a crash
@@ -426,7 +448,7 @@ public class AggregationServerTest {
      * Expected: >= 3 records recovered --------- Get: >= 3
      */
     @Test
-    @Order(10)
+    @Order(11)
     public void testPersistenceRecovery() throws Exception {
         System.out.println("TEST: Server crash/restart recovers feed");
         serverProcess.destroy();
@@ -446,7 +468,7 @@ public class AggregationServerTest {
     }
 
     /**
-     * TEST 11
+     * TEST 12
      *
      * Test if records expire after 30 seconds
      * PUT: id - IDS_EXPIRE, air - 99.0, lamport - 20
@@ -457,7 +479,7 @@ public class AggregationServerTest {
      * Expected: IDS_EXPIRE not found --------- Get: not found
      */
     @Test
-    @Order(11)
+    @Order(12)
     public void testExpiry() throws Exception {
         System.out.println("TEST: Expiry removes old content after 30s");
 
@@ -480,7 +502,7 @@ public class AggregationServerTest {
 
         // Verify record expired
         JsonArray arr = sendGet();
-        System.out.println("Test 11 - res from server: " + arr);
+        System.out.println("Test 12 - res from server: " + arr);
         for (int i = 0; i < arr.size(); i++) {
             assertNotEquals("IDS_EXPIRE", arr.get(i).getAsJsonObject().get("id").getAsString(),
                     "Expired record should be removed");
@@ -490,4 +512,3 @@ public class AggregationServerTest {
         Files.walk(tempDir).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
     }
 }
-`
