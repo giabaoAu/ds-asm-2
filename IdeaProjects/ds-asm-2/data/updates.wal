@@ -1,10 +1,3 @@
-{"lamport":1,"source_id":"unknown","payload":{"id":"IDS001","air_temp":20.0,"lamport":1}}
-{"lamport":5,"source_id":"unknown","payload":{"id":"IDS001","air_temp":25.0,"lamport":5}}
-{"lamport":6,"source_id":"unknown","payload":{"id":"IDS002","air_temp":12.0,"lamport":6}}
-{"lamport":7,"source_id":"unknown","payload":{"id":"IDS002","air_temp":10.0,"lamport":7}}
-{"lamport":8,"source_id":"CS1","payload":{"id":"IDS003","air_temp":30.0,"lamport":8}}
-{"lamport":9,"source_id":"CS2","payload":{"id":"IDS004","air_temp":18.0,"lamport":9}}
-{"lamport":10,"source_id":"CS3","payload":{"id":"IDS005","air_temp":12.0,"lamport":10}}
-{"lamport":20,"source_id":"CS1","payload":{"id":"IDS_EXPIRE","air_temp":99.0,"lamport":20}}
-{"lamport":4,"source_id":"unknown","payload":{"id":"IDS_SEQ","air_temp":11.0,"lamport":4}}
-{"lamport":8,"source_id":"unknown","payload":{"id":"IDS_SEQ","air_temp":22.0,"lamport":8}}
+{"lamport":1,"source_id":"1","payload":{"id":"IDS60901","name":"Adelaide (West Terrace /  ngayirdapira)","state":"SA","time_zone":"CST","lat":"-34.9","lon":"138.6","local_date_time":"15/04:00pm","local_date_time_full":"20230715160000","air_temp":"13.3","apparent_t":"9.5","cloud":"Partly cloudy","dewpt":"5.7","press":"1023.9","rel_hum":"60","wind_dir":"S","wind_spd_kmh":"15","wind_spd_kt":"8","lamport":1,"source_id":"1"}}
+{"lamport":1,"source_id":"2","payload":{"id":"IDS56224","name":"Sydney (Toronto /  Parramatta)","state":"NSW","time_zone":"CST","lat":"-34.9","lon":"158.6","local_date_time":"15/04:00pm","local_date_time_full":"20230715160000","air_temp":"17.3","apparent_t":"4.5","cloud":"Rainy","dewpt":"5.7","press":"1023.9","rel_hum":"60","wind_dir":"S","wind_spd_kmh":"15","wind_spd_kt":"8","lamport":1,"source_id":"2"}}
+{"lamport":4,"source_id":"1","payload":{"id":"IDS60901","name":"Adelaide (West Terrace /  ngayirdapira)","state":"SA","time_zone":"CST","lat":"-34.9","lon":"138.6","local_date_time":"15/04:00pm","local_date_time_full":"20230715160000","air_temp":"13.3","apparent_t":"9.5","cloud":"Partly cloudy","dewpt":"5.7","press":"1023.9","rel_hum":"60","wind_dir":"S","wind_spd_kmh":"15","wind_spd_kt":"8","lamport":4,"source_id":"1"}}

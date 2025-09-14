@@ -73,11 +73,31 @@ public class AggregationServerTest {
         if (serverProcess != null) serverProcess.destroyForcibly();
     }
 
-    /** send GET request (Agg Sv return Json Array) */
+    /** send GET request (without Lamport Clock) */
     private JsonArray sendGet() throws Exception {
         URL url = new URL(SERVER_URL);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("GET");
+
+        /** get server response */
+        int code = conn.getResponseCode();
+        assertEquals(200, code, "GET should return 200 OK");
+
+        /** read line by line */
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = r.readLine()) != null) sb.append(line);
+            return JsonParser.parseString(sb.toString()).getAsJsonArray();
+        }
+    }
+
+    /** send GET request (with Lamport Clock) */
+    private JsonArray sendGet(int lamport) throws Exception {
+        URL url = new URL(SERVER_URL);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("X-Lamport-Clock", String.valueOf(lamport));
 
         /** get server response */
         int code = conn.getResponseCode();
@@ -563,4 +583,58 @@ public class AggregationServerTest {
         assertTrue(found22, "Expected to find IDS_SEQ after PUT2");
     }
 
+    /**
+     * TEST 14
+     *
+     * Sequence: PUT1 (Lamport=4) -> [concurrent: PUT2 (Lamport=8), GET1 (Lamport=6)]
+     *
+     * Expected:
+     *  - The GET must return the state *after PUT1 but before PUT2*.
+     */
+    public void testPutPutGetOrdering() throws Exception {
+        System.out.println("TEST: Concurrent PUT1 + PUT2 + GET with Lamport ordering");
+
+        // Spawn 3 threads
+        ExecutorService exec = Executors.newFixedThreadPool(3);
+
+        // Task 1: PUT1 (lamport=4)
+        Callable<Integer> put1Task = () -> {
+            JsonObject rec1 = sampleRecord("SEQ_ID", 10.0);
+            return sendPut(rec1, 4);
+        };
+
+        // Task 2: PUT2 (lamport=8)
+        Callable<Integer> put2Task = () -> {
+            JsonObject rec2 = sampleRecord("SEQ_ID", 20.0);
+            return sendPut(rec2, 8);
+        };
+
+        // Task 3: GET1 (lamport=6)
+        Callable<JsonArray> getTask = () -> sendGet(6);
+
+        // Submit all three at once -> so they go into PriorityBlockingQueue at the same time
+        Future<Integer> put1Future = exec.submit(put1Task);
+        Future<Integer> put2Future = exec.submit(put2Task);
+        Future<JsonArray> getFuture = exec.submit(getTask);
+
+        // Wait for completion
+        int code1 = put1Future.get();
+        int code2 = put2Future.get();
+        JsonArray arr = getFuture.get();
+
+        exec.shutdown();
+
+        // Validate GET saw only PUT1's value (10.0)
+        boolean found10 = false;
+        for (int i = 0; i < arr.size(); i++) {
+            JsonObject obj = arr.get(i).getAsJsonObject();
+            if ("SEQ_ID".equals(obj.get("id").getAsString())) {
+                double temp = obj.get("air_temp").getAsDouble();
+                assertEquals(10.0, temp,
+                        "GET(Lamport=6) must return state after PUT1, not PUT2");
+                found10 = true;
+            }
+        }
+        assertTrue(found10, "Expected to find record from PUT1");
+    }
 }

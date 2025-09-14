@@ -51,7 +51,8 @@ public class ContentServer {
                     // Call helper function for checking if we need to retry (convert payload from Json to String)
                     boolean success = send_with_retry(server, payload, source_id);
                     if (success) {
-                        System.out.println("PUT sent successfully (Lamport: " + lamport + ", source_id: " + source_id + ")");
+                        // Do not have to print here as we already print in function send_with_retry()
+                        System.out.println("\n");
                     } else {
                         System.out.println("Put sent unsuccessfully after retries!");
                     }
@@ -135,6 +136,9 @@ public class ContentServer {
                     out_stream.write(body_byte);
                 }
 
+                // Send without retry
+                System.out.println("PUT sent successfully (Lamport: " + lamport + ", source_id: " + source_id + ")");
+
                 // Check the response from Agg Sv
                 int status = connection.getResponseCode();
 
@@ -146,8 +150,8 @@ public class ContentServer {
                 }
 
                 // print out response
-                System.out.println("Status: " + status);
-                System.out.println("Lamport Updated: " + lamport);
+                System.out.println("Status code from Aggregation Server: " + status);
+                System.out.println("Content Server Lamport Updated: " + lamport);
 
                 if (status >= 200 && status < 300) {
                     return true;

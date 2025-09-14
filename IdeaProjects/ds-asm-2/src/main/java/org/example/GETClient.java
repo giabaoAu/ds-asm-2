@@ -30,13 +30,13 @@ public class GETClient {
 
         // Receive server status code
         int status = connection.getResponseCode();
-        System.out.println("GET status: " + status);
+        System.out.println("Status code from Aggregation Server: " + status);
 
         // Update client clock based on Lamport from server
         String agg_lamport_header = connection.getHeaderField("X-Lamport-Clock");
         if(agg_lamport_header != null) {
             int agg_lamport = Integer.parseInt(agg_lamport_header);
-            System.out.println("GET status: " + agg_lamport);
+            System.out.println("Lamport Clock from Aggregation Server: " + agg_lamport);
             lamport = Math.max(lamport, agg_lamport) + 1;
         }
         System.out.println("Client Updated Lamport: " + lamport);
