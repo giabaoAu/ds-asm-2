@@ -8,11 +8,12 @@
     - gson-2.11.0.jar (Download link: https://repo1.maven.org/maven2/com/google/code/gson/gson/2.11.0/)
 
 # Note
-1. GET client gets the newest weather data from each content server
+1. GET client gets the newest weather data from each content server. It does send its lamport clock, but we are not maintaining this lamport clock, it just updates whatever is newest from Agg Sv
 2. Content Server + Client update their onw clocks from the Agg Sv send back lamport timestamp
 3. If you have done some **manual** testing and would like a restart, please restore the feed.json to this [] and clear the updates.wal
 4. source_id was used as key when updating Agg Sv memory as we want the latest record from each content server 
 5. Incase port not release -> netstat -ano | findstr :4567 then taskkill /PID <PID> /F
+
 # Compile All Files
 javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
 
@@ -21,11 +22,14 @@ Windows:
 ```bash
 java -cp "out;gson-2.11.0.jar" org.example.AggregationServer 
 ```
+Since a PriorityBlockingQueue is used:
+- If a PUT arrives with Lamport=5, then a GET arrives with Lamport=4, the GET will be processed first (since Lamport 4 < 5).
+- If Lamports are equal, the arrival_seq guarantees strict FIFO ordering within that Lamport tick.
 
 # Content Server
 1. javac -cp "gson-2.11.0.jar" -d out src/main/java/org/example/ContentServer.java
 
-Start with default weather record (sample.json)
+By default, it will Start with default weather record (sample.json)
 If you want to start content server with a different weather record, please change the 
 cs-data/sample.json in the below command to <your_new_file_location> or use the interactive menu.
 (I have made several files for testing, all of them can be found in the dir **cs-data/**)

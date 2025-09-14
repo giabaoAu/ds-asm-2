@@ -36,7 +36,7 @@ public class AggregationServer {
     private final ConcurrentMap<String, Long> last_update = new ConcurrentHashMap();
 
     // ---- single writer with queue for simplifying concurrency ----
-    private final BlockingQueue<PutRequest> request_queue = new LinkedBlockingQueue<>();
+    private final PriorityBlockingQueue<PutRequest> request_queue = new PriorityBlockingQueue<>();
     private Thread writer;
 
     // ---- Serialisation + Deserialisation ----

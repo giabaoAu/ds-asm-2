@@ -1,0 +1,10 @@
+{"lamport":1,"source_id":"unknown","payload":{"id":"IDS001","air_temp":20.0,"lamport":1}}
+{"lamport":5,"source_id":"unknown","payload":{"id":"IDS001","air_temp":25.0,"lamport":5}}
+{"lamport":6,"source_id":"unknown","payload":{"id":"IDS002","air_temp":12.0,"lamport":6}}
+{"lamport":7,"source_id":"unknown","payload":{"id":"IDS002","air_temp":10.0,"lamport":7}}
+{"lamport":8,"source_id":"CS1","payload":{"id":"IDS003","air_temp":30.0,"lamport":8}}
+{"lamport":9,"source_id":"CS2","payload":{"id":"IDS004","air_temp":18.0,"lamport":9}}
+{"lamport":10,"source_id":"CS3","payload":{"id":"IDS005","air_temp":12.0,"lamport":10}}
+{"lamport":20,"source_id":"CS1","payload":{"id":"IDS_EXPIRE","air_temp":99.0,"lamport":20}}
+{"lamport":4,"source_id":"unknown","payload":{"id":"IDS_SEQ","air_temp":11.0,"lamport":4}}
+{"lamport":8,"source_id":"unknown","payload":{"id":"IDS_SEQ","air_temp":22.0,"lamport":8}}

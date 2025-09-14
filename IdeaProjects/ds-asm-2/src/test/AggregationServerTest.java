@@ -511,4 +511,56 @@ public class AggregationServerTest {
         // Cleanup tempDir
         Files.walk(tempDir).sorted(Comparator.reverseOrder()).map(Path::toFile).forEach(File::delete);
     }
+
+    /**
+     * TEST 13
+     *
+     * Sequence: PUT1 (Lamport=4) -> GET (Lamport=6) -> PUT2 (Lamport=8)
+     *
+     * Expected:
+     *  - The GET between the two PUTs must see the state after PUT1.
+     *  - PUT2 is applied after, so later GET should reflect the new value.
+     */
+    @Test
+    @Order(13)
+    public void testPutGetPutOrdering() throws Exception {
+        System.out.println("TEST: PUT -> GET -> PUT ordering (Lamport sequence)");
+
+        // PUT1 (Lamport=4)
+        JsonObject rec1 = sampleRecord("IDS_SEQ", 11.0);
+        int code1 = sendPut(rec1, 4);
+        assertTrue(code1 == 200 || code1 == 201, "PUT1 should succeed");
+
+        // Step 2: GET (Lamport=6) -> must see PUT1
+        JsonArray arrMid = sendGet();
+        boolean found11 = false;
+        for (int i = 0; i < arrMid.size(); i++) {
+            JsonObject obj = arrMid.get(i).getAsJsonObject();
+            if ("IDS_SEQ".equals(obj.get("id").getAsString())) {
+                double temp = obj.get("air_temp").getAsDouble();
+                assertEquals(11.0, temp, "Mid-GET must see PUT1 result (11.0)");
+                found11 = true;
+            }
+        }
+        assertTrue(found11, "Expected to find IDS_SEQ after PUT1");
+
+        // Step 3: PUT2 (Lamport=8) overwrites the value
+        JsonObject rec2 = sampleRecord("IDS_SEQ", 22.0);
+        int code2 = sendPut(rec2, 8);
+        assertEquals(200, code2, "PUT2 should return 200 OK");
+
+        // Step 4: GET after PUT2 -> must see updated value
+        JsonArray arrFinal = sendGet();
+        boolean found22 = false;
+        for (int i = 0; i < arrFinal.size(); i++) {
+            JsonObject obj = arrFinal.get(i).getAsJsonObject();
+            if ("IDS_SEQ".equals(obj.get("id").getAsString())) {
+                double temp = obj.get("air_temp").getAsDouble();
+                assertEquals(22.0, temp, "Final GET must see PUT2 result (22.0)");
+                found22 = true;
+            }
+        }
+        assertTrue(found22, "Expected to find IDS_SEQ after PUT2");
+    }
+
 }
