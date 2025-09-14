@@ -36,7 +36,7 @@ public class AggregationServer {
     private final ConcurrentMap<String, Long> last_update = new ConcurrentHashMap();
 
     // ---- single writer with queue for simplifying concurrency ----
-    private final BlockingQueue<PutRequest> put_queue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<PutRequest> request_queue = new LinkedBlockingQueue<>();
     private Thread writer;
 
     // ---- Serialisation + Deserialisation ----
@@ -219,7 +219,7 @@ public class AggregationServer {
                 // Prepare PUT request for writer to update
                 long lamport_header = remote_lamport >= 0 ? remote_lamport : lp_clock.get();
                 PutRequest req = new PutRequest(lamport_header, arrival_seq.incrementAndGet(), payload.deepCopy(), source_id);
-                put_queue.put(req);
+                request_queue.put(req);
 
                 int result = req.result_future.get();
 
@@ -239,23 +239,35 @@ public class AggregationServer {
                 // Update agg server lamport to reflect we've seen the GET
                 lp_clock.on_receive(remote_lamport);
 
-                // GET is locked to prevent later PUT interleave
-                reentrant_lock.readLock().lock();
-                try{
-                    // Sending multiple weather records back
-                    JsonArray arr = new JsonArray();
-                    for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
-                        arr.add(e.getValue().data);
-                    }
-                    write_response(out_stream, 200, gson.toJson(arr), lp_clock.get());
-                } finally {
-                    reentrant_lock.readLock().unlock();
-                }
+                // Send to queue
+                PutRequest req = new PutRequest(remote_lamport, arrival_seq.incrementAndGet());
+                request_queue.put(req);
+
+                // Wait until writer processes GET
+                JsonArray arr = req.get_future.get();
+                write_response(out_stream, 200, gson.toJson(arr), lp_clock.get());
+
             } else {
                 write_response(out_stream, 400, "Only accept GET or PUT", lp_clock.get());
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    // ----- Helper function for processing GET request ------
+    private void process_get(PutRequest req){
+        // GET is locked to prevent later PUT interleave
+        reentrant_lock.readLock().lock();
+        try{
+            // Sending multiple weather records back
+            JsonArray arr = new JsonArray();
+            for (Map.Entry<String, WeatherRecord> e : memory_store.entrySet()) {
+                arr.add(e.getValue().data);
+            }
+            req.get_future.complete(arr);
+        } finally {
+            reentrant_lock.readLock().unlock();
         }
     }
 
@@ -278,10 +290,16 @@ public class AggregationServer {
         Thread writer = new Thread(() -> {
             while (true) {
                 try {
-                    PutRequest req = put_queue.take();
-                    apply_put(req);
+                    PutRequest req = request_queue.take();
+
+                    // Process PUT or GET based on type
+                    if (req.type == PutRequest.Type.PUT) {
+                        apply_put(req);
+                    } else if (req.type == PutRequest.Type.GET) {
+                        process_get(req);
+                    }
                 } catch(Exception e) {
-                    System.err.println("Writer: cannot process PUT" + e.getMessage());
+                    System.err.println("Writer: cannot process PUT or GET" + e.getMessage());
                 }
             }
         },"Put Worker");
@@ -296,7 +314,7 @@ public class AggregationServer {
         reentrant_lock.writeLock().lock();
         try {
             // If an existing record exists and its lamport is greater than incoming, ignore.
-            String id = req.source_id;
+            String id = req.payload.get("id").getAsString(); // use payload id
             WeatherRecord existing = memory_store.get(id);
             if (existing != null && req.lamport < existing.lamport) {
                 // return 200 "OK" but do not overwrite.
@@ -313,6 +331,8 @@ public class AggregationServer {
 
             // ---- Write to in-memory -----
             boolean created = !memory_store.containsKey(id);
+            // update the memory_store with new lamport
+            req.payload.addProperty("lamport", req.lamport);
             memory_store.put(id, new WeatherRecord(id, req.payload.deepCopy(), req.lamport, req.source_id));
 
             // Update agg server lamport

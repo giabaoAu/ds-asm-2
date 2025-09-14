@@ -1,5 +1,6 @@
 package org.example;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.concurrent.CompletableFuture;      // writer notify Agg Sv when request being processed
 
@@ -9,18 +10,40 @@ import java.util.concurrent.CompletableFuture;      // writer notify Agg Sv when
  *            -> order by arrival sequence
  */
 public class PutRequest implements Comparable<PutRequest> {
+    enum Type { PUT, GET }
+
+    public final Type type;
     public final long lamport;
     public final long arrival_seq;
+
+    // For PUT request only
     public final JsonObject payload;
     public final String source_id;  // identifying source content server
-    public final CompletableFuture<Integer> result_future = new CompletableFuture<>();      // writer send back result asynchronously
+    public final CompletableFuture<Integer> result_future;   // writer send back result asynchronously
 
-    // ---- Constructor for first request ----
+    // For GET request only
+    public final CompletableFuture<JsonArray> get_future;
+
+    // ---- Constructor for first PUT request ----
     public PutRequest(long lamport, long arrival_seq, JsonObject payload, String source_id) {
+        this.type = Type.PUT;
         this.lamport = lamport;
         this.arrival_seq = arrival_seq;
         this.payload = payload;
         this.source_id = source_id;
+        this.result_future = new CompletableFuture<>();
+        this.get_future = null;
+    }
+
+    // ---- Constructor for first GET request ----
+    public PutRequest(long lamport, long arrival_seq) {
+        this.type = Type.GET;
+        this.lamport = lamport;
+        this.arrival_seq = arrival_seq;
+        this.payload = null;
+        this.source_id = null;
+        this.result_future =null;
+        this.get_future = new CompletableFuture<>();
     }
 
     // ---- This is the other requests we're comparing to ----
