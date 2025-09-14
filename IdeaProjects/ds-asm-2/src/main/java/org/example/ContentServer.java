@@ -60,7 +60,7 @@ public class ContentServer {
 
                 case "2":
                     // Ask user for new file path
-                    System.out.println("Enter the new file path: (eg. cs-data/sample2.txt");
+                    System.out.println("Enter the new file path (eg. cs-data/sample2.txt): ");
                     file = scanner.nextLine().trim();
                     payload = text_to_json(file, source_id);
                     System.out.println("File switched to: " + file);

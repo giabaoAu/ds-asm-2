@@ -72,18 +72,23 @@ When getting a PUT request:
 5. Write snapshot periodically
 
 # 🚀 Setup & Compilation
-Compile all files:
+Compile all files:  
+On Windows 💻:
 ```bash
 javac -cp "out;gson-2.11.0.jar" -d out src/main/java/org/example/*.java
 ```
+On Linux/MacOS 🐧:
+```bash
+javac -cp "out:gson-2.11.0.jar" -d out src/main/java/org/example/*.java
+```
 
 ### 🖧 Run Aggregation Server
-On Windows:
+On Windows 💻:
 ```bash
 java -cp "out;gson-2.11.0.jar" org.example.AggregationServer 
 ```
 
-On Linux/MacOS:
+On Linux/MacOS 🐧:
 ```bash
 java -cp "out:gson-2.11.0.jar" org.example.AggregationServer 
 ```
@@ -94,8 +99,13 @@ If you want to start content server with a different weather record, please chan
 cs-data/sample.json in the below command to <your_new_file_location> or use the interactive menu.   
 (I have made several files for testing, all of them can be found in the folder **cs-data/**)
 
+On Windows 💻:
 ```bash 
 java -cp "out;gson-2.11.0.jar" org.example.ContentServer http://localhost:4567/weather.json cs-data/sample.txt 1
+```
+On Linux/MacOS 🐧:
+```bash 
+java -cp "out:gson-2.11.0.jar" org.example.ContentServer http://localhost:4567/weather.json cs-data/sample.txt 1
 ```
 (You can also choose option 2 in the menu after running this command to change the weather record you want to send)
 
@@ -106,21 +116,36 @@ Instruction:
 4. Choose 3 if you want to exit the program
 
 ### 🖥 Run GET Client
+On windows 💻:
 ```bash 
 java -cp "out;gson-2.11.0.jar" org.example.GETClient  http://localhost:4567/weather.json
 ```
+On Linux/MacOS 🐧:
+```bash 
+java -cp "out:gson-2.11.0.jar" org.example.GETClient  http://localhost:4567/weather.json
+```
 
 # 🐞 Automated Testing 
-Compile the test file with:
+Compile the test file with:     
+On windows 💻:
 ```bash
 javac -d out -cp "gson-2.11.0.jar;junit-platform-console-standalone-1.9.3.jar;out" src/test/AggregationServerTest.java
 ```
+On Linux/MacOS 🐧:
+```bash
+javac -d out -cp "gson-2.11.0.jar:junit-platform-console-standalone-1.9.3.jar:out" src/test/AggregationServerTest.java
+```
 
-Now run the test class (run all test):
+Now run the test class (run all test):  
+On windows 💻:
 ```bash
 java -jar junit-platform-console-standalone-1.9.3.jar -cp "out;gson-2.11.0.jar" --scan-class-path
-
 ```
+On Linux/MacOS 🐧:
+```bash
+java -jar junit-platform-console-standalone-1.9.3.jar -cp "out:gson-2.11.0.jar" --scan-class-path
+```
+
 # 🔀 How Do We Handle Concurrency?
 When 2 (or more) requests come at the same time:
 - The order of arrival is non-deterministic
